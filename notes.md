@@ -167,7 +167,7 @@ Summary: Template inheritance makes it easier to apply changes across multiple p
 
 ## Bootstrap
 
-![Bootstrap starter template](https://getbootstrap.com/docs/4.0/getting-started/introduction/#starter-template)
+[Bootstrap starter template](https://getbootstrap.com/docs/4.0/getting-started/introduction/#starter-template)
 
 ```html
 <!doctype html>
@@ -225,7 +225,107 @@ Summary: Template inheritance makes it easier to apply changes across multiple p
     </body>
 </html>
 ```
-
 Adding the container class gives some padding to the blog post.
 
-Stopped at importing code snippets 33:03 
+Key point here is about template inheritance, to make scalable code and to add some CSS to make template look nicer, not just base html.
+
+Part 3: Templates; Timestamp 33:07
+
+Copy code from Corey's repo, in a file called `navigation.html`. We are trying to add in some navigation features to the website. 
+
+Right as he was explaining how to add CSS to our website, he begins to talk about creating a new directory to store CSS. Usually the folder is called `static`. 
+
+* Create a new folder in the `blog` directory and create a new folder `static`.
+* Create another folder inside your `static` folder, name it after the app.
+  * ie. Your folder structure: blog -> static -> blog 
+* Create a new file called `main.css` inside the lowest subfolder. Copy and paste the code from the snippets folder, there's a file with the same name `main.css`.
+* Insert a code block at the top of your `base.html` file to load your custom css file.
+
+![](img/load_static.png)
+
+This is what you see when you refresh the server.
+
+![](img/django_blog_with_some_css.png)
+
+Part 3 Timestamp 39:51, replace the article html with code snippet file of the same name. The new article html has more CSS classes to make the article looks nicer.
+
+![](img/article_html.png)
+
+![](img/article_with_css.png)
+
+We want to abstract the href arguments in our `base.html` file so that we don't hard code
+the links in the navigation bar.
+
+Previously:
+```html
+<a class="nav-item nav-link" href="/">Home</a>
+```
+
+Now (making use of a code block): 
+```html
+<a class="nav-item nav-link" href="{% url 'blog-home'%}">Home</a>
+```
+
+We use the url tag and the name of the route, which we chose to be 'blog-home'.
+
+Recap on purpose of templates: Update your site in a single location (template inheritance), use URLS for link references, avoid hardcoding.
+
+## Part 4 Admin Page
+
+* Create new super user to login in as admin to your site.
+* Create database (database migration, apply changes to database, for us, will create an auth_user table)
+* Run `python manage.py makemigrations`
+* Run `python manage.py migrate`
+* Open terminal and enter the following command:
+* `python manage.py createsuperuser`
+
+## Part 5 Database and Migrations
+
+* Sqlite for development
+* Postgres for production
+
+Add the stuff you need in `models.py`
+```python
+#models.py
+from django.db import models
+from django.utils import timezone
+from django.contrib.auth.models import User
+
+class Post(models.Model):
+    #  Create title attribute, a character field with a max length
+    title = models.CharField(max_length=100)
+    # Create content attribute as a textfield
+    content = models.TextField()
+    date_posted = models.DateTimeField(default=timezone.now)
+    # on_delete removes all the posts if the user is deleted
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+```
+In your terminal
+
+* Run `python manage.py makemigrations`
+* Run `python manage.py sqlmigrate blog <migration_number>`
+* Replace the migration_number with 0001.
+
+This is the terminal output you'll see. 
+
+![](img/sql_migrate_initial.png)
+
+Turns class into SQL commands. Saves time for us to write the SQL ourselves. Object relational mappers makes it possible to write SQL code using on Python objects.
+
+* Run migrate command: `python manage.py migrate`. You should get an OK status.
+  
+Creating a new post
+
+* Run `python manage.py shell` to go into the Python terminal that can interact with Django objects
+* Run `from blog.models import Post`
+* Run `from django.contrib.auth.models import User`
+* Assign user var to some user, i.e. `user = User.objects.filter(username='nkzy1517').first()`
+* `user = User.objects.get(id=1)`
+* Create a post instance: `post_1 = Post(title='Blog 1', content='First Post Content!', author=user)`
+* Save post: `post_1.save()`
+* Check that your post is saved: `Post.objects.all()`
+* Creating a post through 
+  * Either create another post instance, specifying the author OR
+  * Run `user.post_set.create(title='Blog 3', content='Third Post Content!')` and you can leave out the author and the `.save()` method.
+
+(Part 5 Stopped at 27:58)
