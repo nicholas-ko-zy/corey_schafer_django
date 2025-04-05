@@ -328,4 +328,90 @@ Creating a new post
   * Either create another post instance, specifying the author OR
   * Run `user.post_set.create(title='Blog 3', content='Third Post Content!')` and you can leave out the author and the `.save()` method.
 
-(Part 5 Stopped at 27:58)
+Instead of building out posts based on hardcoded dummy data, now we try to get the information from a SQL query to a database. 
+
+![](img/dummy_data.png)
+
+*Hardcoded dummy data in `views.py`*
+
+```python
+# views.py
+# Old code
+def home(request):
+    context = {
+        'posts': posts
+    }
+    return render(request, template_name='blog/home.html', context=context)
+```
+
+```python
+# views.py
+# New code
+def home(request):
+    context = {
+        'posts': Post.objects.all()
+    }
+    return render(request, template_name='blog/home.html', context=context)
+```
+The new code chunk uses the object relational mappers, which turn OOP Python code into SQL queries to the database. Using the `objects.all()` method gives all the posts.
+
+Next we want to have an option to add posts via the admin page, i.e. http://127.0.0.1:8000/admin/. To do that you have to go to your `blog` folder's `admin.py` file
+
+```python
+# blog/admin.py
+from django.contrib import admin
+from .models import Post
+
+admin.site.register(Post)
+```
+
+This is reflected in your admin GUI.
+
+![](img/admin_gui_post1.png)
+
+![](img/admin_gui_post2.png)
+
+# Part 6 - User Registration
+Goal: Create a front-end form, the kinds you typically see when you sign up for an account with a new platform.
+
+First, we create an app called `users`. This will handle all our user features, like creating users. To create an app, recall that we run the terminal command:
+
+```
+python manage.py startapp users
+```
+
+Then we will get a new folder. Now we need to add our newly created `users` app to out settings.py file's `INSTALLED_APPS` list. Question: How do we know what name to add to the list? Well, we can think of the app you want to add as something like an import statement. You begin with the folder, followed by the subfolders, adding a period `.` as you go down the folder levels. Finally you end with the class name of your app. The class name is found in the `apps.py` file.
+
+```python
+# users/apps.py
+class UsersConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'users'
+```
+
+So now we have 
+
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'blog.apps.BlogConfig',
+    'users.apps.UsersConfig', # <- Newly added app file
+]
+```
+
+Now we write the functions to create forms. Django comes with built-in classes for creating forms.
+
+```python
+from django.contrib.auth.forms import UserCreationForm
+```
+
+We create a template for this in HTML. Recall that to create a template for an app, we need to create this 'redundant' folder structure:
+
+app_name > templates > app_name > template_name.html
+
+Stopped at Part 6 13:40 - Filling in the html for the users app template.
