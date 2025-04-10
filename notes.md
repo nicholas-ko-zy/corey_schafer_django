@@ -7,7 +7,7 @@ See Mosh tutorial notes
 # Part 2 Application and Routes
 
 ## Create new app
-See Mosh tutorial ntoes
+See Mosh tutorial notes
 
 Inside your `view.py` import http response. 
 
@@ -414,4 +414,171 @@ We create a template for this in HTML. Recall that to create a template for an a
 
 app_name > templates > app_name > template_name.html
 
-Stopped at Part 6 13:40 - Filling in the html for the users app template.
+Now instead of creating a `urls` module for our `users` app just as we did for blog, we are going to directly import the views function from the `users` app into the overall project's `urls.py` file.
+
+See the difference between blog and users?
+
+```python
+from django.contrib import admin
+from django.urls import path, include
+from users import views as user_views
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('blog.urls')),
+    path('register/', user_views.register, name='register'),
+]
+```
+
+Now we have a basic registration page when we navigate to that URL. 
+
+![](/img/user_register_page.png)
+
+Now we can make it look a little nicer using the form template. Simple change is to do `{{ form.as_p }}` instead of `{{ form }}`.
+
+Key takeaway: User form gives us this user form all out of the box.
+
+Now we want to handle the POST request that we get after the completed form. To do that, we would like to 
+
+1. Handle the underlying POST
+2. Redirect the user to home page and print a message communicating the status of the sign-up, i.e. If it was successful or not.
+
+
+For (1), we can add a conditional to handle the POST request in the  `users/views.py` file. For (2), we will report a success message and add a highlighted bar at the top of the home-page, right above the posts.
+
+(1)'s code change:
+
+```python
+# Create your views here.
+def register(request):
+    # Add in conditional to handle a POST request, to validate the form data
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            # Form passes validation check, get the username and return a message.
+            username = form.cleaned_data.get('username')
+            messages.success(request, f'Account created for {username}!')
+            # After a successful sign-up, use redirect function to
+            # send the user back to the homepage.
+            return redirect('blog-home')
+    else:
+        form = UserCreationForm()
+    return render(request, 'users/register.html', {'form': form})
+```
+
+(2)'s code change, focus being on the if messages block.
+
+```html
+-snip-
+
+<div class="row">
+    <div class="col-md-8">
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags}}"> 
+            {{ message }}
+        </div>
+        {% endfor %}  
+    {% endif %}
+    {% block content %}{% endblock %}
+    </div>
+    <div class="col-md-4">
+    <div class="content-section">
+        <h3>Our Sidebar</h3>
+
+-snip-
+```
+
+![](/img/account_creation_message.png)
+
+Finally, to update your database after a successful signup, just add `form.save()` to your views function.
+
+![](/img/new_user_added.png)
+
+## Adding a new field to the user creation form
+Notice that we are missing the email address field for our alicebob. Now we need to create a new field to add to our register template.
+
+To resolve this, we create a custom registration form using Django's default form template. Essentially, this we make a child class from Django's `UserCreationForm` class. After that we need to replace the default form we used in the views function to our custom form class, which we call `UserRegisterForm`, which now includes an email field.
+
+```python
+# django_project/users/forms.py
+from django import forms
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm
+
+# Create a form that inherits from UserCreationForm
+
+class UserRegisterForm(UserCreationForm):
+    email = forms.EmailField(required=True)
+
+    class Meta:
+        # The model that is affected is the User model
+        model = User
+        # These are fields we want in the form, in this order
+        fields = ['username', 'email', 'password1', 'password2']
+```
+Voila
+
+![](img/registration_form_w_email_field.png)
+
+So let's try again, to add a new user, this time with an email address...
+
+![](img/new_user_w_email.png)
+
+## Add bootstrap style to registration page to match our homepage style
+
+Plus we want to add a highlight message to tell the user that they entered something wrong in one of the fields.
+
+Let's try to do all our styling in our templates. C.S introduces a third-party Django framework called CrispyForms.
+
+So we install it with `pip install django-crispy-forms`.
+
+Add it to your settings file's `INSTALLED_APPS`:
+
+```python
+-snip-
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'blog.apps.BlogConfig',
+    'users.apps.UsersConfig',
+    'crispy_forms', # <- added crispy forms
+]
+-snip-
+
+.
+.
+.
+# Specify which CSS framework you wanna use, in our case, bootstrap 4
+CRISPY_TEMPLATE_PACK = 'bootstrap4'
+```
+
+Then go back to your `register.html` template and load the Crispy Form in a code block and add a filter (denoted by `|`) on the `forms` variable.
+
+```html
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <div class="content-section">
+        <form method="POST">
+
+-snip-
+.
+.
+.
+            <fieldset class="form-group">
+                <legend class="border-bottom mb-4"> Join Today </legend>
+                {{ form|crispy }}
+            </fieldset>
+-snip-
+```
+
+![](img/registration_form_bootstrap5.png)
+
+We can see that the both the spacing of the fields and the error messages look so much better.
+
+Stopped at beginning of Part 7.
