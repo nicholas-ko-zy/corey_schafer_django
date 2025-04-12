@@ -581,4 +581,245 @@ Then go back to your `register.html` template and load the Crispy Form in a code
 
 We can see that the both the spacing of the fields and the error messages look so much better.
 
-Stopped at beginning of Part 7.
+# Part 7 Admin and User Authentication
+
+First, we have to import Django's standard out-of-the-box views for user authentication.
+
+```python
+# django_project/django_project/urls.py
+from django.contrib.auth import views as auth_views
+```
+
+Remember that you always want to import `views` as something else, since there will be all kinds of views, you'll mess them up if you don't rename them.  i.e. importing from users, rename as `user_views`, importing from auth, rename `auth_views`.
+
+After that, we add the login/logout paths to our url patterns list in the same file. We also need a template for the user login page. First we specify where our template path is. There's a default path for the template, but we can specify it in the as_views method's `template_name=` parameter.
+
+```python
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('blog.urls')),
+    path('register/', user_views.register, name='register'),
+    path('login/', auth_views.LoginView.as_view(template_name='user/login.html'), name='login'), # <- Newly added login path
+    path('logout/', auth_views.LogoutView.as_view(template_name='user/logout.html'), name='logout'), # <- Newly added logout path
+]
+```
+
+![](/img/login_failed.png)
+
+Now suppose we have a successful login, then we need a redirect otherwise we will get an error. To avoid the error, we need to add this to the settings file.
+
+```python
+# django_project/settings.py
+.
+.
+.
+-snip-
+
+LOGIN_REDIRECT_URL = 'blog-home'
+```
+
+Now, we add a message that after someone creates new account, we redirect them back to the login page so they can test out their login credentials instead of sending them back to the home page.
+
+
+*Before*
+```python
+# users/views.py
+def register(request):
+    if request.method == 'POST':
+        form = UserRegisterForm(request.POST)
+        if form.is_valid():
+            form.save()
+            username = form.cleaned_data.get('username')
+            messages.success(request, f'Account created for {username}!') #<- Old message
+            return redirect('blog-home') # <-Old redirect
+    else:
+        form = UserRegisterForm()
+    return render(request, 'users/register.html', {'form': form})
+```
+
+*After*
+```python
+# users/views.py
+def register(request):
+    if request.method == 'POST':
+        form = UserRegisterForm(request.POST)
+        if form.is_valid():
+            form.save()
+            username = form.cleaned_data.get('username')
+            messages.success(request, f'Your account has been created! You are now able to log in!') # <- New message
+            return redirect('login') # <- New redirect
+    else:
+        form = UserRegisterForm()
+    return render(request, 'users/register.html', {'form': form})
+```
+
+Now we add a logout view. Ok, so CS's method of just typing `/logout/` in the url doesn't work. This because going to a URL invokes a GET request, but Django's logout requires a POST request instead.
+
+Now we want to change navigation link to change what people depending on their they're logged in or not. If they are, then no need to see login, vice versa.
+
+```html
+{%raw%}
+
+<!-- Navbar Right Side -->
+<div class="navbar-nav">
+{% if user.is_authenticated %}
+    <form method="post" action="{% url 'logout' %}" style="display: inline;">
+    {% csrf_token %}
+    <button type="submit" class="nav-item nav-link" style="background: none; border: none; padding: 0; cursor: pointer; color: #cbd5db; text-decoration: none;">
+        Logout
+    </button>
+    </form>
+{% else %}
+    <a class="nav-item nav-link" href= {% url 'login' %}>Login</a>
+    <a class="nav-item nav-link" href= {% url 'register' %}>Register</a>
+{% endif %}
+</div>
+{%endraw%}
+```
+
+
+![](img/logout_link_after_user_auth.png)
+
+Now we create a route to the user's profile. First, we create a users's profile method.
+
+```python
+# users/views.py
+def profile(request):
+    return render(request, 'users/profile.html')
+```
+
+Second, create a profile template, that goes into our users/templates/users folder.
+
+```html
+{% raw %}
+<!-- users/templates/users/profile -->
+{% extends "blog/base.html" %}
+{% load crispy_forms_tags %}
+{% block content %}
+    <h1> {{ user.username }} </h1>
+{% endblock content %}
+
+{% endraw %}
+```
+
+Next, add in the urlpattern for profile
+
+```python
+# django_project/django_project/urls.py
+-snip-
+path('profile', user_views.profile, user_views.profile, name='profile'),
+-snip-
+```
+
+Now we also want to add a condition for the user to be logged in in order to see the profile. It doesn't make sense to be able to navigate to the profile page if you are logged out.
+
+To do this we can do a simple check on the user authentication state. In the `users/views.py` file, first import
+
+```python
+from django.contrib.auth.decorators import login_required
+```
+
+Then add this line of code to the profile function and redirect user to the login page if they wanna see the profile page.
+
+In settings, specify your login url. 
+```python
+# django_project/django_project/settings.py
+-snip-
+LOGIN_URL = 'login'
+```
+Viola you're done. You'll notice that in the URL, it keeps track of the page you were trying to access and once your login is successful, it will direct you to the page you wanted to go.
+
+![](/img/login_to_see_profile.png)
+
+# Part 8: User Profile and Picture
+
+Create a new model in our users app. 
+
+We need to install `pillow` with `pip install Pillow` so that our database migration works with images. 
+
+Then after that we makemigrations -> migrate
+
+1. `python manage.py makemigrations`
+2. `python manage.py migrate`
+
+
+We also want to register our profile module in `users/admin.py`.
+
+```python
+# users/admin.py`
+admin.site.register(Profile)
+```
+
+Now we'll try to add in a profile picture for one of our users. 
+
+Let's also reorganise where the profile pictures are saved to. Currently, they are saved to `django_project/profile_pics` which in the future might be very cluttered if there are many pictures.
+
+First, add this line in the settings file.
+
+```python
+# django_project/django_project/settings.py
+-snip-
+# Set media root
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'
+```
+
+After this, Corey does two things which I won't go deep into: 
+1. Copy/paste code snippets for the profile HTML.
+2. Follow Django documentation for serving user-uploaded files
+
+```python
+# django_project/django_project/urls.py
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+```
+
+![](/img/profile_page_w_pic.png)
+
+We want to make sure that every new user created, they automatically get a profile, which includes the default profile picture. Now we have to go to the admin page to create the profiles for our users. To resolve this, we'll a Django signal. 
+
+1. Create a `signals.py` file in your users app.
+```python
+# Fire this signal after a post is saved.
+from django.db.models.signals import post_save
+# User is the sender, user sends a signal
+from django.contrib.auth.models import User
+# Create a receiver, receives signal
+from django.dispatch import receiver
+from .models import Profile
+
+@receiver(post_save, sender=User)
+def create_profile(sender, instance, created, **kwargs):
+    if created:
+        Profile.objects.create(user=instance)
+
+@receiver(post_save, sender=User)
+def save_profile(sender, instance, **kwargs):
+    instance.profile.save()
+
+```
+
+* When a post is saved, the it will trigger a signal. Sender is user, and receiver is this `create_profile` function, which...as you guessed it, creates a profile.
+* Save profile after it's created.
+
+2. Import signals inside users app.
+
+```python
+# users/apps.py
+class UsersConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'users'
+
+    def ready(self):
+        import users.signals
+```
+
+So now each time we create a new user, we also create a new profile automatically with the default picture loaded.
+
+i.e. 
+
+![](/img/TU1_create.png)
+
+![](/img/TU1_profile_created.png)
+
+

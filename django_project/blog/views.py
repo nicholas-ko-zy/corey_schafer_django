@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from django.http import HttpResponse
+from django.contrib.auth import logout
 from .models import Post
 # Create your views here.
 
@@ -26,3 +27,6 @@ def home(request):
 
 def about(request):
     return render(request, template_name='blog/about.html', context={'title':'About'})
+
+def logout_view(request):
+    logout(request)
