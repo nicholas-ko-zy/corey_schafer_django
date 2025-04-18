@@ -823,3 +823,135 @@ i.e.
 ![](/img/TU1_profile_created.png)
 
 
+# Part 9: Update User Profile
+
+We need to create a form that will update our user model. To do so, we just need to add more forms to update the user and profile. 
+
+```python
+# django_project/users/forms.py
+-snip-
+class UserUpdateForm(forms.ModelForm):
+    # A user update form to update the username and email
+    class Meta:
+        model = User
+        fields = ['username', 'email']
+
+class ProfileUpdateForm(forms.ModelForm):
+    # A profile update form to update our profile picture
+    class Meta: 
+        model = Profile
+        field = ['image']
+```
+
+After that, we need to update our view function so that we also see the UserUpdateForm, ProfileUpdateForm, on top of the existing UserRegisterForm.
+
+```python
+# django_project/users/views.py
+-snip-
+def profile(request):
+    u_form = UserUpdateForm()
+    p_form = ProfileUpdateForm()
+
+    context = {
+        'u_form': u_form,
+        'p_form': p_form
+    }
+
+    # Add requirement for user to be logged in to see profile
+    return render(request, 'users/profile.html', context=context)
+```
+
+Recap on what is context in a Django view function and how it is used in templates:
+
+Taken from: https://clouddevs.com/django/use-context-in-templates/
+
+> "
+    How is it Used in Templates? Once the context dictionary is populated in a view, it’s passed to the template as a parameter when rendering the template. This makes the data within the context accessible within the template, allowing you to dynamically generate HTML content based on that data.
+"
+So the changes we made to our view function now will dynamically update the profile based on the context, which is based on the user and profile update forms.
+
+Next we want to copy the form from the `register.html` template and paste it into the `profile.html` template. 
+
+```
+<!-- Form snippet from register.html, the register template -->
+{% raw %}
+<form method="POST">
+    {% comment %} Add csrf token {% endcomment %}
+    {% csrf_token %}
+    <fieldset class="form-group">
+        <legend class="border-bottom mb-4"> Join Today </legend>
+        {{ form|crispy }}
+    </fieldset>
+    <div class="form-group">
+        <button class="btn btn-outline-info" type="submit">Sign Up</button>
+    </div>
+</form>
+{% endraw %}
+```
+
+We need to change the code snipper a bit so that we see both the user and profile update forms as a single form. We need to edit it out as such:
+
+```
+<!-- profile.html -->
+{% raw %}
+-snip-
+<form method="POST" enctype="multipart/form-data">
+    {% comment %} Add csrf token {% endcomment %}
+    {% csrf_token %}
+    <fieldset class="form-group">
+        <legend class="border-bottom mb-4"> Profile Info </legend>
+        {{ u_form|crispy }}
+        {{ p_form|crispy }}
+    </fieldset>
+    <div class="form-group">
+        <button class="btn btn-outline-info" type="submit"> Update </button>
+    </div>
+</form>
+-snip-
+{% endraw %}
+```
+
+We changed the variable name for the form and stacked them on top of each other. `u_form` and `p_form`.
+
+![](/img/profile_form_v1.png)
+
+It would make sense for the username, email address and image to be filled in with the current ones. 
+
+```python
+# django_project/users/views.py
+def profile(request):
+    if request.method == 'POST':
+        u_form = UserUpdateForm(request.POST, instance=request.user)
+        p_form = ProfileUpdateForm(request.POST, 
+                                   request.FILES,
+                                   instance=request.user.profile)
+        if u_form.is_valid() and p_form.is_valid():
+            u_form.save()
+            p_form.save()
+            messages.success(request, f'Your account has been updated!')
+            # POST GET REDIRECT
+            return redirect('profile')
+    else:
+        u_form = UserUpdateForm(instance=request.user)
+        p_form = ProfileUpdateForm(instance=request.user.profile)
+    
+    context = {
+        'u_form': u_form,
+        'p_form': p_form
+    }
+
+    # Add requirement for user to be logged in to see profile
+    return render(request, 'users/profile.html', context=context)
+```
+
+![](/img/profile_form_v2.png)
+
+Then if we try to update the profile form
+
+![](/img/update_profile_form.png)
+
+![](/img/updated_profile_page.png)
+
+Now we try to resize image so that the large image doesn't eat up memory. 
+
+Stopped at Part 9 17:10
