@@ -954,4 +954,221 @@ Then if we try to update the profile form
 
 Now we try to resize image so that the large image doesn't eat up memory. 
 
-Stopped at Part 9 17:10
+```python
+# django_project/users/models.py
+def save(self):
+    # Use the save method of our parent class
+    super().save()
+
+    # Open image of the current profile instance
+    img = Image.open(self.image.path)
+
+    # Check if image is large
+    if img.height > 300 or img.width > 300:
+        # Set the desired output image size
+        output_size = (300, 300)
+        # Resize image with the thumbnail method
+        img.thumbnail(output_size)
+        # Override the large image, with the resized smaller image
+        img.save(self.image.path)
+```
+
+The generalisation of this lesson is that you can write additional methods to transform user inputs to fit your needs. In this case, control the size of the user's profile picture to save memory.
+
+We can add profile pics next to our blog post. To do so, we can add a line of code in `home.html`
+
+```html
+<!-- home.html -->
+{% raw %}
+
+<img class="rounded-circle article-img" src="{{ post.author.profile.image.url }}">
+
+{% endraw %}
+```
+
+# Part 10: Create, Update and Delete Posts
+
+Goal is to convert views into listviews to make it easier to create,update and delete posts. Class based view vs function based view.
+
+First is to replace the current home view function with listview, you need to specify these things...try to get more info from the Django documentation...
+
+*Before*
+```python
+def home(request):
+    context = {
+        'posts': Post.objects.all()
+    }
+    return render(request, template_name='blog/home.html', context=context)
+```
+
+
+*After*
+
+```python
+# /django_project/blog/views.py
+class PostListView(ListView):
+    # These are just parameters for ListView
+    # What model to use in each post
+    model = Post
+    # What template to use
+    template_name = 'blog/home.html'
+    # What is the name the context
+    context_object_name = 'posts' 
+    # Set order of posts to be most recent first
+    ordering = ['-date_posted']
+
+```
+
+![](/img/blog_post_sorted.png)
+
+Benefit of using classes - just set variables, no need to code the logic from scratch.
+
+Then in our urls, we can link the post url to the primary key/post id. To do so, we have to change two things. First, the `urls.py` file and the `home.html` template. For the latter, it's so that when you click on the link in the home page, it will reroute the user to the correct url, which is `post/<int:pk>`. The primary key is tagged to the each post in the database. Remark: I deleted some old posts and added some new ones, but the primary key auto-increments, so pk = 1,2,3 will lead to deadlinks. The new posts are 4,5,6. To double check your primary key, you can run these commands inside your Django shell.
+
+``` bash
+python manage.py shell
+```
+
+```python
+from blog.models import Post 
+Post.objects.all() # <- returns a list of post, then just go to the index and use .pk
+Post.objects.all()[0].pk
+```
+
+
+
+```python
+path('post/<int:pk>/', PostDetailView.as_view(), name='post-detail'),
+```
+
+```html
+<!-- home.html -->
+-snip-
+{% raw %}
+<h2><a class="article-title" href={% url 'post-detail' post.id %}>{{ post.title }}</a></h2>
+{% endraw %}
+-snip-
+```
+
+![](/img/post_w_pk_url.png)
+
+Now, let's write code for users to create new posts. We need a coupla things: 
+1. A new view function to create forms. `PostCreateView`
+2. A new url path in `django_project/blog/urls.py`
+3. A new template to create a new blog post.
+
+Reduce the amount of code to write forms. i.e. 
+
+```python
+class PostCreateView(CreateView):
+    # A view with a form to create a new post
+    model = Post
+    # Set fields for form
+    fields = ['title', 'content']
+    
+    # Override Django form sending
+    # to use the current user who's sending the request as the author of the form.
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        return super().form_valid(form)
+```
+Gives you a form instantly, you just need to give the other 2 things above. We also want to add in a redirect functionality so that after you create a post, you are redirected to that newly created post's page. Instead opf using redirect, we will use reverse instead.
+
+```python
+# django_project/blog/models.py
+class Post(models.Model):
+    .
+    .
+    .
+    def get_absolute_url(self):
+        return reverse('post-detail', kwargs={'pk': self.pk})
+    
+```
+
+Also, adding a `LoginRequiredMixin` will redirect a non-logged-in user to the login page before the user can create a post.
+
+```python
+# django_project/blog/views.py
+from django.contrib.auth.mixins import LoginRequiredMixin
+.
+.
+.
+class PostCreateView(LoginRequiredMixin, CreateView):
+    .
+    .
+    .
+```
+We also added in PostUpdateView with a `UserPassesTestMixin` so that the author of the post can edited his/her post. This prevents a user from editing another user's post by simply going to the url and adding `/update/`.
+
+```python
+# django_project/blog/views.py
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+.
+.
+.
+class PostUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+    # A view with a form to create a new post
+    model = Post
+    # Set fields for form
+    fields = ['title', 'content']
+    
+    # Tells Django to use the current user who's sending the request as the a
+    # author of the form.
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        return super().form_valid(form)
+    
+    def test_func(self):
+        post = self.get_object()
+        if self.request.user == post.author:
+            return True
+        else:
+            return False
+```
+
+![](/img/denied_unauth_update.gif)
+
+We also create a delete view, which will need a new view function, url and template. The delete view function and url will look similar to the update function, since they both require user login checks. One difference is that we'll have a custom template for deleting, which will ask you to confirm if you want to delete your post.
+
+![](/img/delete_view.gif)
+
+
+```python
+# django_project/blog/views.py
+-snip-
+class PostDeleteView(LoginRequiredMixin, UserPassesTestMixin, DeleteView):
+    model = Post
+    # Give a success url so that after deletion, you are redirected to the home page.
+    success_url = '/'
+    def test_func(self):
+        post = self.get_object()
+        if self.request.user == post.author:
+            return True
+        else:
+            return False
+-snip-
+```
+
+To add a link to create a post from the navigation bar, go to `base.html`, within the if-block that checks for user-authentication, add another nav item
+
+```html
+{% raw %}
+<a class="nav-item nav-link" href="{% url 'post-create' %}" style="color: #cbd5db;">New Post</a>
+{% endraw %}
+```
+
+To add buttons to create and delete posts, add buttons inside your `post_detail.html` template which link to the update and delete views respectively.
+
+```html
+<!-- post_detail.html -->
+{% raw %}
+    {% if object.author == user %}
+        <a class="btn btn-secondary btn-sm mt-1 mb-1" href="{% url 'post-update' object.id %}"> Update </a>
+        <a class="btn btn-danger btn-sm mt-1 mb-1" href="{% url 'post-delete' object.id %}"> Delete </a>
+    {% endif %}
+{% endraw %}
+
+```
+
+![](/img/post_update_delete_buttons.gif)
+
